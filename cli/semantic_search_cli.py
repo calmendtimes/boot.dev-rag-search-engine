@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import re
 import lib.semantic_search as SS
+import lib.chunked_semantic_search as CSS
+
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -15,6 +18,15 @@ def main():
     search_parser = subparsers.add_parser("search", help="search <text> in movies")
     search_parser.add_argument("text", type=str, help="text")
     search_parser.add_argument("--limit", type=int, default=5, help="number of results")
+    chunk_parser = subparsers.add_parser("chunk", help="chunk <text> in to [--chunk-size] token count parts")
+    chunk_parser.add_argument("text", type=str, help="text")
+    chunk_parser.add_argument("--chunk-size", type=int, default=200, help="chunk tokens count")
+    chunk_parser.add_argument("--overlap", type=int, default=0, help="overlap")
+    semantic_chunk_parser = subparsers.add_parser("semantic_chunk", help="chunk <text> in to 'sentences' up to [--max_chunk-size] parts")
+    semantic_chunk_parser.add_argument("text", type=str, help="text")
+    semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="text")
+    semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="text")
+    embed_text_parser = subparsers.add_parser("embed_chunks", help="Generate movies chunks embeddings")
     
 
     args = parser.parse_args()
@@ -41,7 +53,19 @@ def main():
                 r = result[i]
                 print(f"{i+1}.  {r['title']} (score: {r['score']:.2f})")
                 print(f"    {r['description'][:55]}...")
-
+        case "chunk":
+            chunks = CSS.chunk(args.text, args.chunk_size, args.overlap)
+            print(F"Chunking {len(args.text)} characters")
+            for i in range(len(chunks)): print(f"{i+1}. {chunks[i]}")
+        case "semantic_chunk":
+            chunks = CSS.semantic_chunk(args.text, args.max_chunk_size, args.overlap)
+            print(F"Semantically chunking {len(args.text)} characters")
+            for i in range(len(chunks)): print(f"{i+1}. {chunks[i]}")
+        case "embed_chunks":
+            documents = SS.load_movies()
+            css = CSS.ChunkedSemanticSearch()
+            chunk_embeddings = css.load_or_create_chunk_embeddings(documents)
+            print(f"Generated {len(chunk_embeddings)} chunked embeddings")
         case _:
             parser.print_help()
 

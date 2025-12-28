@@ -6,10 +6,10 @@ from sentence_transformers import SentenceTransformer
 
 class SemanticSearch:
     
-    def __init__(self):
+    def __init__(self, model_name = "all-MiniLM-L6-v2"):
         # Load the model (downloads automatically the first time)
         self.embeddings_cache_file = "cache/movie_embeddings.npy"
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.model = SentenceTransformer(model_name)
         self.embeddings = None
         self.documents = None
         self.document_map = {}
