@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import inverted_index
+import lib.keyword_search as KS
 
 
 def print_search_result(result):
@@ -10,7 +10,7 @@ def print_search_result(result):
 
 def print_bm25search_result(result):
     for r in result:
-        print(f" ({r}) {result[r][0]} - {result[r][1]:.2f}")
+        print(f" ({r['id']}) {r['title']} - {r['score']:.2f}")
 
 
 def main() -> None:
@@ -18,7 +18,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
-    build_parser = subparsers.add_parser("build", help="Build inverted index for movies")
+    build_parser = subparsers.add_parser("build", help="Build inverted ks for movies")
     tf_parser = subparsers.add_parser("tf", help="<term> frequency in document <doc_id>")
     tf_parser.add_argument("doc_id", type=str, help="Document ID")
     tf_parser.add_argument("term", type=str, help="Search query")
@@ -32,51 +32,51 @@ def main() -> None:
     bm25_tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given document ID and term")
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
-    bm25_tf_parser.add_argument("k1", type=float, nargs='?', default=inverted_index.BM25_K1, help="Tunable BM25 K1 parameter")
-    bm25_tf_parser.add_argument("b", type=float, nargs='?', default=inverted_index.BM25_B, help="Tunable BM25 b parameter")
+    bm25_tf_parser.add_argument("k1", type=float, nargs='?', default=KS.BM25_K1, help="Tunable BM25 K1 parameter")
+    bm25_tf_parser.add_argument("b", type=float, nargs='?', default=KS.BM25_B, help="Tunable BM25 b parameter")
     bm25search_parser = subparsers.add_parser("bm25search", help="Search movies using full BM25 scoring")
     bm25search_parser.add_argument("query", type=str, help="Search query")
 
     args = parser.parse_args()  
 
-    index = inverted_index.InvertedIndex()
+    ks = KS.KeywordSearch()
 
     match args.command:
         case "search":
             try:
-                index.load()  
-                found = index.get_documents(args.query)
+                ks.load()  
+                found = ks.get_documents(args.query)
                 print_search_result(found)
             except Exception as e:
                 print("Error", e)
                 print("Exiting application")
         case "tf":
-            index.load()
-            tf = index.get_tf(args.doc_id, args.term)
+            ks.load()
+            tf = ks.get_tf(args.doc_id, args.term)
             print(tf)
         case "idf":
-            index.load()
-            idf = index.get_idf(args.term)
+            ks.load()
+            idf = ks.get_idf(args.term)
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
         case "tfidf":
-            index.load()
-            tf_idf = index.get_tfidf(args.doc_id, args.term)
+            ks.load()
+            tf_idf = ks.get_tfidf(args.doc_id, args.term)
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
         case "bm25idf":
-            index.load()
-            bm25idf = index.get_bm25_idf(args.term)
+            ks.load()
+            bm25idf = ks.get_bm25_idf(args.term)
             print(f"BM25 IDF score of '{args.term}': {bm25idf:.2f}")
         case "bm25tf":
-            index.load()
-            bm25tf = index.get_bm25_tf(args.doc_id, args.term)
+            ks.load()
+            bm25tf = ks.get_bm25_tf(args.doc_id, args.term)
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
         case "bm25search":
-            index.load()
-            bm25search = index.bm25_search(args.query)
+            ks.load()
+            bm25search = ks.bm25_search(args.query)
             print_bm25search_result(bm25search)
         case "build":
-            index.build()
-            index.save()
+            ks.build()
+            ks.save()
 
         case _:
             parser.print_help()

@@ -27,6 +27,9 @@ def main():
     semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="text")
     semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="text")
     embed_text_parser = subparsers.add_parser("embed_chunks", help="Generate movies chunks embeddings")
+    search_chunked_parser = subparsers.add_parser("search_chunked", help="search <text> in chunked movies")
+    search_chunked_parser.add_argument("text", type=str, help="text")
+    search_chunked_parser.add_argument("--limit", type=int, default=5, help="number of results")
     
 
     args = parser.parse_args()
@@ -66,6 +69,15 @@ def main():
             css = CSS.ChunkedSemanticSearch()
             chunk_embeddings = css.load_or_create_chunk_embeddings(documents)
             print(f"Generated {len(chunk_embeddings)} chunked embeddings")
+        case "search_chunked":
+            documents = SS.load_movies()
+            css = CSS.ChunkedSemanticSearch()
+            css.load_or_create_chunk_embeddings(documents)
+            result = css.search_chunks(args.text, args.limit)
+            for i in range(len(result)):
+                r = result[i]
+                print(f"\n{i+1}.  {r['title']} (score: {r['score']:.4f})")
+                print(f"    {r['document']}...")
         case _:
             parser.print_help()
 

@@ -11,7 +11,7 @@ BM25_K1 = 1.5
 BM25_B = 0.75
 
 
-class InvertedIndex:
+class KeywordSearch:
 
     def __init__(self):
         self.__index_cache_file  = "cache/index.pkl"
@@ -116,18 +116,22 @@ class InvertedIndex:
 
     def bm25_search(self, query, limit=5):
         tokens = self.__tokenize(query)
-        scores = defaultdict(int) # doc_id's -> bm25 scores
+        scores = []
 
         for doc_id in self.docmap:
+            score = 0.0
             for t in tokens:
-                scores[doc_id] += self.bm25(doc_id, t)
+                score += self.bm25(doc_id, t)
             
-        sorted_scores = dict(sorted(scores.items(), key = lambda i: i[1], reverse = True))
-        result_scores = dict(list(sorted_scores.items())[:limit])
-        result = {}
-        for r in result_scores:
-            result[r] = (self.docmap[r]['title'], result_scores[r])
-        return result
+            scores.append({
+                "id"        : doc_id,
+                "title"     : self.docmap[doc_id]['title'],
+                "document"  : self.docmap[doc_id]['description'][:100],
+                "score"     : score,
+            })
+            
+        scores.sort(reverse=True, key=lambda s: s["score"])
+        return scores[:limit]
 
 
     def build(self):
@@ -156,4 +160,10 @@ class InvertedIndex:
             self.term_frequencies = pickle.load(f)
         with open(self.__doc_lengths_cache_file, "rb") as f:
             self.doc_lengths = pickle.load(f)
+        return self.index and self.docmap and self.term_frequencies and self.doc_lengths
 
+    def load_or_create(self):
+        if not self.load():
+            self.build()
+            self.save()
+            self.load()

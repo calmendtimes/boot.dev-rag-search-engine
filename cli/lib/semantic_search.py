@@ -54,6 +54,8 @@ class SemanticSearch:
             self.embeddings = np.load(self.embeddings_cache_file)
             if len(self.embeddings) == len(self.documents):
                 return self.embeddings
+            else: 
+                print(f"Document and Embedding count mismatch {len(self.documents)} {len(self.embeddings)}")
         return self.build_embeddings(documents)
 
 
