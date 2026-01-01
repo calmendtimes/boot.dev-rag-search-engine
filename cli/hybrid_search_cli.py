@@ -35,7 +35,7 @@ def main() -> None:
     rrf_search_parser.add_argument("query", type=str, help="Query to get weighted search results for.")
     rrf_search_parser.add_argument("-k", type=int, nargs='?', default=1, help="rrf k parameter")
     rrf_search_parser.add_argument("--limit", type=int, nargs='?', default=5, help="Number of results")
-    
+    rrf_search_parser.add_argument("--enhance", type=str, choices=["spell", "rewrite", "expand"], help="Query enhancement method")
 
     args = parser.parse_args()
 
@@ -51,8 +51,20 @@ def main() -> None:
         case "rrf-search":
             documents = SS.load_movies()
             hs = HS.HybridSearch(documents)
-            result = hs.rrf_search(args.query, args.k, args.limit)
-            print_rrf_search(result, args.limit)
+            fixed_query = ""
+            if args.enhance == 'spell': 
+                fixed_query = HS.fix_spelling(args.query)
+            if args.enhance == 'rewrite': 
+                fixed_query = HS.rewrite_query(args.query)
+            if args.enhance == 'expand': 
+                fixed_query = HS.expand_query(args.query)
+            if fixed_query and fixed_query != args.query:
+                print(f"Enhanced query ({args.enhance}): '{args.query}' -> '{fixed_query}'\n")
+                result = hs.rrf_search(fixed_query, args.k, args.limit)
+                print_rrf_search(result, args.limit)
+            else:
+                result = hs.rrf_search(args.query, args.k, args.limit)
+                print_rrf_search(result, args.limit)
         case _:
             parser.print_help()
 

@@ -1,5 +1,5 @@
 import os
-
+import lib.gemini as gemini
 from .keyword_search import KeywordSearch
 from .chunked_semantic_search import ChunkedSemanticSearch
 
@@ -84,7 +84,56 @@ class HybridSearch:
         result = sorted(scores.items(), reverse=True, key=lambda e: e[1]["rrf_score"])
         result = list(result)[:limit]
         return dict(result)
-    
+
+
+def fix_spelling(query):
+    contents =  "Fix any spelling errors in this movie search QUERY.\n" +\
+                "No need for some program or script, just FIX the SPELLING ERRORS IN QUERY." +\
+                "Only correct obvious typos. Don't change correctly spelled words.\n" +\
+                "If no errors, return the ORIGINAL QUERY.\n" +\
+                "RETURN ONLY FIXED OR ORIGINAL QUERY. FIXED QUERY SHOULD NOT ADD ANY WORDS, JUST FIX TYPOS\n" +\
+                f"Query: '{query}'.\n"
+    response = gemini.request(contents)
+    return response["response_text"]
+
+def rewrite_query(query):
+    contents =  "Rewrite this movie search query to be more specific and searchable.\n" + \
+                "\n" + \
+                f"Original: '{query}'\n" + \
+                "\n" + \
+                "Consider:\n" + \
+                "- Common movie knowledge (famous actors, popular films)\n" + \
+                "- Genre conventions (horror = scary, animation = cartoon)\n" + \
+                "- Keep it concise (under 10 words)\n" + \
+                "- It should be a google style search query that's very specific\n" + \
+                "- Don't use boolean logic\n" + \
+                "\n" + \
+                "Examples:\n" + \
+                "\n" + \
+                "- 'that bear movie where leo gets attacked' -> 'The Revenant Leonardo DiCaprio bear attack'\n" + \
+                "- 'movie about bear in london with marmalade' -> 'Paddington London marmalade'\n" + \
+                "- 'scary movie with bear from few years ago' -> 'bear horror movie 2015-2020'\n" + \
+                "\n" + \
+                "Rewritten query:"
+    response = gemini.request(contents)
+    return response["response_text"]
+
+def expand_query(query):
+    contents = "Expand this movie search query with related terms.\n" + \
+                "\n" + \
+                "Add synonyms and related concepts that might appear in movie descriptions.\n" + \
+                "Keep expansions relevant and focused.\n" + \
+                "This will be appended to the original query.\n" + \
+                "\n" + \
+                "Examples:\n" + \
+                "\n" + \
+                "- 'scary bear movie' -> 'scary horror grizzly bear movie terrifying film'\n" + \
+                "- 'action movie with bear' -> 'action thriller bear chase fight adventure'\n" + \
+                "- 'comedy with bear' -> 'comedy funny bear humor lighthearted'\n" + \
+                "\n" + \
+                f"Query: '{query}'\n"
+    response = gemini.request(contents)
+    return response["response_text"]
 
 def rrf_score(rank, k=60):
     return 1 / (k + rank)
