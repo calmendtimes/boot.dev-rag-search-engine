@@ -20,7 +20,7 @@ def repeat_decorator(limit, pause_s=0):
                 except Exception as e:
                     last_exception = e
                     if pause_s: 
-                        logger.debug(f"Exception, pausing to repeat after {pause_s}s.") 
+                        logger.debug(f"Exception, pausing to repeat after {pause_s}s. Exception: {e}")
                         time.sleep(pause_s)                        
 
             raise last_exception

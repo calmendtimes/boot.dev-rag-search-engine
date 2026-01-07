@@ -17,6 +17,8 @@ def print_rrf_search(result, limit):
     i = 1
     for [id, s] in result.items():
         print(f" {i}. id({id}) {s['title']}")
+        if "cross_encoder_score" in s:
+            print(f"    Cross Encoder Score: {s['cross_encoder_score']}")
         if "reranked_score" in s: 
             print(f"    Reranked Score: {s['reranked_score']}")
         print(f"    RRF: {s['rrf_score']:.4f}")
@@ -25,51 +27,12 @@ def print_rrf_search(result, limit):
         if i == limit: break
         i += 1
 
-def fix_query(query, enhance):
-    fixed_query = query
-    if enhance == 'spell'  : fixed_query = HS.llm_fix_spelling(query)
-    if enhance == 'rewrite': fixed_query = HS.llm_rewrite_query(query)
-    if enhance == 'expand' : fixed_query = HS.llm_expand_query(query)
-    if fixed_query and fixed_query != query: 
-        print(f"Enhanced query ({enhance}): '{query}' -> '{fixed_query}'\n")
-    return fixed_query
-        
 def get_limit(limit, rerank_method):
     if rerank_method == "individual":
         return limit * 5
     else:
         return limit
-
-def rerank(result, query, limit):
-    i = 1
-    for [id, s] in result.items():
-        print(f" Reranking {i}. id({id}) {s['title']}", end="")
-        i += 1
-        s["reranked_score"] = HS.llm_rank_query(query, s['document'])
-        print(f"    Reranked score: {s['reranked_score']}")
-        time.sleep(1)
-    print("Reranked.")
-    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
-    result = list(result)[:limit]
-    result = dict(result)
-    return result
-
-def batch_rerank(result, query, limit):
-    doc_list = []
-    for [id, s] in result.items():
-        doc_list.append(s['document'])
-
-    scores = HS.llm_batch_rank_query(query, doc_list)
-    i = 0
-    for [id, s] in result.items():
-        s["reranked_score"] = scores[i]
-        i += 1
-
-    print("Reranked.")
-    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
-    result = list(result)[:limit]
-    result = dict(result)
-    return result
+    
 
 
 def main() -> None:
@@ -86,7 +49,7 @@ def main() -> None:
     rrf_search_parser.add_argument("-k", type=int, nargs='?', default=1, help="rrf k parameter")
     rrf_search_parser.add_argument("--limit", type=int, nargs='?', default=5, help="Number of results")
     rrf_search_parser.add_argument("--enhance", type=str, choices=["spell", "rewrite", "expand"], help="Query enhancement method")
-    rrf_search_parser.add_argument("--rerank-method", type=str, choices=["individual", "batch"], help="Query enhancement method")
+    rrf_search_parser.add_argument("--rerank-method", type=str, choices=["individual", "batch", "cross_encoder"], help="Query enhancement method")
 
     args = parser.parse_args()
 
@@ -102,15 +65,17 @@ def main() -> None:
         case "rrf-search":
             documents = SS.load_movies()
             hs = HS.HybridSearch(documents)
-            fixed_query = fix_query(args.query, args.enhance)
+            fixed_query = HS.fix_query(args.query, args.enhance)
             limit = get_limit(args.limit, args.rerank_method)
             result = hs.rrf_search(fixed_query, args.k, limit)
             
             if args.rerank_method == "individual":
-                result = rerank(result, fixed_query, args.limit)
+                result = HS.rerank(result, fixed_query, args.limit)
             elif args.rerank_method == "batch":
-                result = batch_rerank(result, fixed_query, args.limit)
-            
+                result = HS.batch_rerank(result, fixed_query, args.limit)
+            elif args.rerank_method == "cross_encoder":
+                result = SS.cross_encoder_rerank(result, fixed_query)
+
             print_rrf_search(result, args.limit)
         case _:
             parser.print_help()

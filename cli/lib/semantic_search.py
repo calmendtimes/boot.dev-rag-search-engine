@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder
 
 
 class SemanticSearch:
@@ -93,3 +94,12 @@ def embed_query_text(query):
     print(f"Query: {query}")
     print(f"First 5 dimensions: {embedding[:5]}")
     print(f"Shape: {embedding.shape}")
+
+def cross_encoder_rerank(result, query):
+    cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+    pairs = [[query, f"{d.get('title', '')} - {d.get('document', '')}"] for d in result.values()]
+    scores = cross_encoder.predict(pairs)
+    for d in zip(result.values(), scores): d[0]["cross_encoder_score"] = d[1]
+    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["cross_encoder_score"])
+    result = dict(result)
+    return result

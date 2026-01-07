@@ -168,7 +168,6 @@ def llm_rank_query(query, doc):
     try: return int(response)
     except (ValueError, TypeError): return 0
 
-
 @repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_batch_rank_query(query, doc_list):
     doc_list_str = []
@@ -185,8 +184,49 @@ def llm_batch_rank_query(query, doc_list):
                 "[75, 12, 34, 2, 1]\n"
     response = gemini.request(contents)
     json_rsp = json.loads(response["response_text"])
-    if len(json_rsp) != len(doc_list): raise ValueError("Incorrect response scores list length.")
+    if len(json_rsp) != len(doc_list): raise ValueError(f"Incorrect response scores list length, list {json_rsp}")
     return json_rsp
+
+
+def fix_query(query, enhance):
+    fixed_query = query
+    if enhance == 'spell'  : fixed_query = llm_fix_spelling(query)
+    if enhance == 'rewrite': fixed_query = llm_rewrite_query(query)
+    if enhance == 'expand' : fixed_query = llm_expand_query(query)
+    if fixed_query and fixed_query != query: 
+        print(f"Enhanced query ({enhance}): '{query}' -> '{fixed_query}'\n")
+    return fixed_query
+
+def rerank(result, query, limit):
+    i = 1
+    for [id, s] in result.items():
+        print(f" Reranking {i}. id({id}) {s['title']}", end="")
+        i += 1
+        s["reranked_score"] = HS.llm_rank_query(query, s['document'])
+        print(f"    Reranked score: {s['reranked_score']}")
+        time.sleep(1)
+    print("Reranked.")
+    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
+    result = list(result)[:limit]
+    result = dict(result)
+    return result
+
+def batch_rerank(result, query, limit):
+    doc_list = []
+    for [id, s] in result.items():
+        doc_list.append(s['document'])
+
+    scores = llm_batch_rank_query(query, doc_list)
+    i = 0
+    for [id, s] in result.items():
+        s["reranked_score"] = scores[i]
+        i += 1
+
+    print("Reranked.")
+    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
+    result = list(result)[:limit]
+    result = dict(result)
+    return result
 
 
 def rrf_score(rank, k=60):
