@@ -1,8 +1,9 @@
 import os
+import json
 import lib.gemini as gemini
 from .keyword_search import KeywordSearch
 from .chunked_semantic_search import ChunkedSemanticSearch
-
+from .repeat_decorator import repeat_decorator
 
 class HybridSearch:
     def __init__(self, documents):
@@ -27,7 +28,8 @@ class HybridSearch:
             s = ss_result[i]
             scores[s["id"]] = { 
                 "title": s["title"], 
-                "document": s["document"],
+                "description": s["document"],
+                "document": self.documents[s['id']],
                 "semantic_score": ss_scores[i],
                 "keyword_score": 0
             }
@@ -36,7 +38,8 @@ class HybridSearch:
             if s["id"] not in scores: 
                 scores[s["id"]] = { 
                     "title": s["title"],
-                    "document": s["document"], 
+                    "description": s["document"], 
+                    "document": self.documents[s['id']],
                     "semantic_score": 0
                 }
             scores[s["id"]]["keyword_score"] = ks_scores[i]   
@@ -61,7 +64,8 @@ class HybridSearch:
             s = ss_result[i]
             scores[s["id"]] = { 
                 "title": s["title"], 
-                "document": s["document"],
+                "description": s["document"],
+                "document": self.documents[s['id']],
                 "semantic_score": ss_scores[i],
                 "keyword_score": 0
             }
@@ -71,7 +75,8 @@ class HybridSearch:
             if s["id"] not in scores: 
                 scores[s["id"]] = { 
                     "title": s["title"],
-                    "document": s["document"], 
+                    "description": s["document"], 
+                    "document": self.documents[s['id']],
                     "semantic_score": 0
                 }
             scores[s["id"]]["keyword_score"] = ks_scores[i]   
@@ -86,6 +91,10 @@ class HybridSearch:
         return dict(result)
 
 
+LLM_REQUEST_REPEATS = 3
+LLM_REQUEST_PAUSE = 2
+
+@repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_fix_spelling(query):
     contents =  "Fix any spelling errors in this movie search QUERY.\n" +\
                 "No need for some program or script, just FIX the SPELLING ERRORS IN QUERY." +\
@@ -96,6 +105,7 @@ def llm_fix_spelling(query):
     response = gemini.request(contents)
     return response["response_text"]
 
+@repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_rewrite_query(query):
     contents =  "Rewrite this movie search query to be more specific and searchable.\n" + \
                 "\n" + \
@@ -118,6 +128,7 @@ def llm_rewrite_query(query):
     response = gemini.request(contents)
     return response["response_text"]
 
+@repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_expand_query(query):
     contents = "Expand this movie search query with related terms.\n" + \
                 "\n" + \
@@ -135,23 +146,45 @@ def llm_expand_query(query):
     response = gemini.request(contents)
     return response["response_text"]
 
+@repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_rank_query(query, doc):
-    contents = "Rate how well this movie matches the search query." +\
-                "" +\
-                f"Query: '{query}'" +\
-                f"Movie: {doc.get('title', '')} - {doc.get('document', '')}" +\
-                "" +\
-                "Consider:" +\
-                "- Direct relevance to query" +\
-                "- User intent (what they're looking for)" +\
-                "- Content appropriateness" +\
-                "" +\
-                "Rate 0-10 (10 = perfect match)." +\
-                "Give me ONLY the number in your response, no other text or explanation." +\
-                "" +\
+    contents = "Rate how well this movie matches the search query.\n" +\
+                "\n" +\
+                f"Query: '{query}'\n" +\
+                f"Movie: {doc.get('title', '')} - {doc.get('document', '')}\n" +\
+                "\n" +\
+                "Consider:\n" +\
+                "- Direct relevance to query\n" +\
+                "- User intent (what they're looking for)\n" +\
+                "- Content appropriateness\n" +\
+                "\n" +\
+                "Rate 0-10 (10 = perfect match).\n" +\
+                "Give me ONLY the number in your response, no other text or explanation.\n" +\
+                "\n" +\
                 "Score:"
     response = gemini.request(contents)
     return response["response_text"]
+
+@repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
+def llm_batch_rank_query(query, doc_list):
+    doc_list_str = []
+    contents = "Rank these movies by relevance to the search query.\n" +\
+                "\n" +\
+                "Query: '{query}'\n" +\
+                "\n" +\
+                "Movies:\n" +\
+                f"'{doc_list_str}'\n" +\
+                "\n" +\
+                "Return ONLY the IDs in order of relevance (best match first). Return a valid JSON list, nothing else. For example:\n" +\
+                "[75, 12, 34, 2, 1]\n"
+    response = gemini.request(contents)
+
+    print("REQUEST", contents)
+    print("RESPONSE", response["response_text"])
+    print("JSON", json.loads(response["response_text"]))
+
+    return json.loads(response["response_text"])
+
 
 def rrf_score(rank, k=60):
     return 1 / (k + rank)

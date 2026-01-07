@@ -3,13 +3,14 @@ import argparse
 import lib.semantic_search as SS
 import lib.hybrid_search as HS
 
+
 def print_weighted_search(result):
     i = 1
     for [id, s] in result.items():
         print(f" {i}. id({id}) {s['title']}")
         print(f"    Hybrid Score: {s['hybrid_score']:.4f}")
         print(f"    BM25: {s['keyword_score']:.4f},    Semantic: {s['semantic_score']:.4f}")
-        print(f"    {s['document']}")
+        print(f"    {s['description']}")
         i += 1
 
 def print_rrf_search(result, limit):
@@ -20,7 +21,7 @@ def print_rrf_search(result, limit):
             print(f"    Reranked Score: {s['reranked_score']}")
         print(f"    RRF: {s['rrf_score']:.4f}")
         print(f"    BM25: {s['keyword_score']:.4f},    Semantic: {s['semantic_score']:.4f}")
-        print(f"    {s['document']}")
+        print(f"    {s['description']}")
         if i == limit: break
         i += 1
 
@@ -39,6 +40,37 @@ def get_limit(limit, rerank_method):
     else:
         return limit
 
+def rerank(result, query, limit):
+    i = 1
+    for [id, s] in result.items():
+        print(f" Reranking {i}. id({id}) {s['title']}", end="")
+        i += 1
+        s["reranked_score"] = HS.llm_rank_query(query, s['document'])
+        print(f"    Reranked score: {s['reranked_score']}")
+        time.sleep(1)
+    print("Reranked.")
+    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
+    result = list(result)[:limit]
+    result = dict(result)
+    return result
+
+def batch_rerank(result, query, limit):
+    doc_list = []
+    for [id, s] in result.items():
+        doc_list.append(s['document'])
+
+    scores = HS.llm_batch_rank_query(query, doc_list)
+    i = 0
+    for [id, s] in result.items():
+        s["reranked_score"] = scores[i]
+        i += 1
+
+    print("Reranked.")
+    result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
+    result = list(result)[:limit]
+    result = dict(result)
+    return result
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hybrid Search CLI")
@@ -54,7 +86,7 @@ def main() -> None:
     rrf_search_parser.add_argument("-k", type=int, nargs='?', default=1, help="rrf k parameter")
     rrf_search_parser.add_argument("--limit", type=int, nargs='?', default=5, help="Number of results")
     rrf_search_parser.add_argument("--enhance", type=str, choices=["spell", "rewrite", "expand"], help="Query enhancement method")
-    rrf_search_parser.add_argument("--rerank-method", type=str, choices=["individual"], help="Query enhancement method")
+    rrf_search_parser.add_argument("--rerank-method", type=str, choices=["individual", "batch"], help="Query enhancement method")
 
     args = parser.parse_args()
 
@@ -72,18 +104,13 @@ def main() -> None:
             hs = HS.HybridSearch(documents)
             fixed_query = fix_query(args.query, args.enhance)
             limit = get_limit(args.limit, args.rerank_method)
-            print("|||||||||||||||", args.rerank_method, limit) 
             result = hs.rrf_search(fixed_query, args.k, limit)
-
+            
             if args.rerank_method == "individual":
-                for [id, s] in result.items():
-                    doc = hs.documents[id]
-                    s["reranked_score"] = HS.llm_rank_query(fixed_query, doc)
-                    time.sleep(1)
-                result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
-                result = list(result)[:args.limit]
-                result = dict(result)
-
+                result = rerank(result, fixed_query, args.limit)
+            elif args.rerank_method == "batch":
+                result = batch_rerank(result, fixed_query, args.limit)
+            
             print_rrf_search(result, args.limit)
         case _:
             parser.print_help()
