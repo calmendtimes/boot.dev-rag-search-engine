@@ -10,7 +10,7 @@ def print_weighted_search(result):
         print(f" {i}. id({id}) {s['title']}")
         print(f"    Hybrid Score: {s['hybrid_score']:.4f}")
         print(f"    BM25: {s['keyword_score']:.4f},    Semantic: {s['semantic_score']:.4f}")
-        print(f"    {s['description']}")
+        print(f"    {s['description']}...")
         i += 1
 
 def print_rrf_search(result, limit):
@@ -21,7 +21,7 @@ def print_rrf_search(result, limit):
             print(f"    Reranked Score: {s['reranked_score']}")
         print(f"    RRF: {s['rrf_score']:.4f}")
         print(f"    BM25: {s['keyword_score']:.4f},    Semantic: {s['semantic_score']:.4f}")
-        print(f"    {s['description']}")
+        print(f"    {s['description']}...")
         if i == limit: break
         i += 1
 

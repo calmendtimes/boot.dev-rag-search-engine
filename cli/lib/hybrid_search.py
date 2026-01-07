@@ -8,6 +8,7 @@ from .repeat_decorator import repeat_decorator
 class HybridSearch:
     def __init__(self, documents):
         self.documents = documents
+        self.documents_map = {d['id']:d for d in documents}
         self.css = ChunkedSemanticSearch()
         self.css.load_or_create_chunk_embeddings(documents)
         self.ks = KeywordSearch()
@@ -29,7 +30,7 @@ class HybridSearch:
             scores[s["id"]] = { 
                 "title": s["title"], 
                 "description": s["document"],
-                "document": self.documents[s['id']],
+                "document": self.documents_map[s['id']],
                 "semantic_score": ss_scores[i],
                 "keyword_score": 0
             }
@@ -39,7 +40,7 @@ class HybridSearch:
                 scores[s["id"]] = { 
                     "title": s["title"],
                     "description": s["document"], 
-                    "document": self.documents[s['id']],
+                    "document": self.documents_map[s['id']],
                     "semantic_score": 0
                 }
             scores[s["id"]]["keyword_score"] = ks_scores[i]   
@@ -65,7 +66,7 @@ class HybridSearch:
             scores[s["id"]] = { 
                 "title": s["title"], 
                 "description": s["document"],
-                "document": self.documents[s['id']],
+                "document": self.documents_map[s['id']],
                 "semantic_score": ss_scores[i],
                 "keyword_score": 0
             }
@@ -76,7 +77,7 @@ class HybridSearch:
                 scores[s["id"]] = { 
                     "title": s["title"],
                     "description": s["document"], 
-                    "document": self.documents[s['id']],
+                    "document": self.documents_map[s['id']],
                     "semantic_score": 0
                 }
             scores[s["id"]]["keyword_score"] = ks_scores[i]   
@@ -151,7 +152,7 @@ def llm_rank_query(query, doc):
     contents = "Rate how well this movie matches the search query.\n" +\
                 "\n" +\
                 f"Query: '{query}'\n" +\
-                f"Movie: {doc.get('title', '')} - {doc.get('document', '')}\n" +\
+                f"Movie: {doc.get('title', '')} - {doc.get('description', '')}\n" +\
                 "\n" +\
                 "Consider:\n" +\
                 "- Direct relevance to query\n" +\
@@ -163,27 +164,29 @@ def llm_rank_query(query, doc):
                 "\n" +\
                 "Score:"
     response = gemini.request(contents)
-    return response["response_text"]
+    response = response["response_text"]
+    try: return int(response)
+    except (ValueError, TypeError): return 0
+
 
 @repeat_decorator(LLM_REQUEST_REPEATS, LLM_REQUEST_PAUSE)
 def llm_batch_rank_query(query, doc_list):
     doc_list_str = []
     contents = "Rank these movies by relevance to the search query.\n" +\
                 "\n" +\
-                "Query: '{query}'\n" +\
+                f"Query: '{query}'\n" +\
                 "\n" +\
-                "Movies:\n" +\
-                f"'{doc_list_str}'\n" +\
-                "\n" +\
-                "Return ONLY the IDs in order of relevance (best match first). Return a valid JSON list, nothing else. For example:\n" +\
+                "Movies:\n"
+    
+    for doc in doc_list:
+        contents += f"    Movie: {doc.get('title', '')} - {doc.get('description', '')}\n"
+    
+    contents += "\nReturn ONLY the IDs in order of relevance (best match first). Return a valid JSON list, nothing else. For example:\n" +\
                 "[75, 12, 34, 2, 1]\n"
     response = gemini.request(contents)
-
-    print("REQUEST", contents)
-    print("RESPONSE", response["response_text"])
-    print("JSON", json.loads(response["response_text"]))
-
-    return json.loads(response["response_text"])
+    json_rsp = json.loads(response["response_text"])
+    if len(json_rsp) != len(doc_list): raise ValueError("Incorrect response scores list length.")
+    return json_rsp
 
 
 def rrf_score(rank, k=60):
