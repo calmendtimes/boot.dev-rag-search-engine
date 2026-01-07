@@ -86,7 +86,7 @@ class HybridSearch:
         return dict(result)
 
 
-def fix_spelling(query):
+def llm_fix_spelling(query):
     contents =  "Fix any spelling errors in this movie search QUERY.\n" +\
                 "No need for some program or script, just FIX the SPELLING ERRORS IN QUERY." +\
                 "Only correct obvious typos. Don't change correctly spelled words.\n" +\
@@ -96,7 +96,7 @@ def fix_spelling(query):
     response = gemini.request(contents)
     return response["response_text"]
 
-def rewrite_query(query):
+def llm_rewrite_query(query):
     contents =  "Rewrite this movie search query to be more specific and searchable.\n" + \
                 "\n" + \
                 f"Original: '{query}'\n" + \
@@ -118,7 +118,7 @@ def rewrite_query(query):
     response = gemini.request(contents)
     return response["response_text"]
 
-def expand_query(query):
+def llm_expand_query(query):
     contents = "Expand this movie search query with related terms.\n" + \
                 "\n" + \
                 "Add synonyms and related concepts that might appear in movie descriptions.\n" + \
@@ -132,6 +132,24 @@ def expand_query(query):
                 "- 'comedy with bear' -> 'comedy funny bear humor lighthearted'\n" + \
                 "\n" + \
                 f"Query: '{query}'\n"
+    response = gemini.request(contents)
+    return response["response_text"]
+
+def llm_rank_query(query, doc):
+    contents = "Rate how well this movie matches the search query." +\
+                "" +\
+                f"Query: '{query}'" +\
+                f"Movie: {doc.get('title', '')} - {doc.get('document', '')}" +\
+                "" +\
+                "Consider:" +\
+                "- Direct relevance to query" +\
+                "- User intent (what they're looking for)" +\
+                "- Content appropriateness" +\
+                "" +\
+                "Rate 0-10 (10 = perfect match)." +\
+                "Give me ONLY the number in your response, no other text or explanation." +\
+                "" +\
+                "Score:"
     response = gemini.request(contents)
     return response["response_text"]
 

@@ -1,3 +1,4 @@
+import time
 import argparse
 import lib.semantic_search as SS
 import lib.hybrid_search as HS
@@ -15,11 +16,28 @@ def print_rrf_search(result, limit):
     i = 1
     for [id, s] in result.items():
         print(f" {i}. id({id}) {s['title']}")
+        if "reranked_score" in s: 
+            print(f"    Reranked Score: {s['reranked_score']}")
         print(f"    RRF: {s['rrf_score']:.4f}")
         print(f"    BM25: {s['keyword_score']:.4f},    Semantic: {s['semantic_score']:.4f}")
         print(f"    {s['document']}")
         if i == limit: break
         i += 1
+
+def fix_query(query, enhance):
+    fixed_query = query
+    if enhance == 'spell'  : fixed_query = HS.llm_fix_spelling(query)
+    if enhance == 'rewrite': fixed_query = HS.llm_rewrite_query(query)
+    if enhance == 'expand' : fixed_query = HS.llm_expand_query(query)
+    if fixed_query and fixed_query != query: 
+        print(f"Enhanced query ({enhance}): '{query}' -> '{fixed_query}'\n")
+    return fixed_query
+        
+def get_limit(limit, rerank_method):
+    if rerank_method == "individual":
+        return limit * 5
+    else:
+        return limit
 
 
 def main() -> None:
@@ -36,6 +54,7 @@ def main() -> None:
     rrf_search_parser.add_argument("-k", type=int, nargs='?', default=1, help="rrf k parameter")
     rrf_search_parser.add_argument("--limit", type=int, nargs='?', default=5, help="Number of results")
     rrf_search_parser.add_argument("--enhance", type=str, choices=["spell", "rewrite", "expand"], help="Query enhancement method")
+    rrf_search_parser.add_argument("--rerank-method", type=str, choices=["individual"], help="Query enhancement method")
 
     args = parser.parse_args()
 
@@ -51,20 +70,21 @@ def main() -> None:
         case "rrf-search":
             documents = SS.load_movies()
             hs = HS.HybridSearch(documents)
-            fixed_query = ""
-            if args.enhance == 'spell': 
-                fixed_query = HS.fix_spelling(args.query)
-            if args.enhance == 'rewrite': 
-                fixed_query = HS.rewrite_query(args.query)
-            if args.enhance == 'expand': 
-                fixed_query = HS.expand_query(args.query)
-            if fixed_query and fixed_query != args.query:
-                print(f"Enhanced query ({args.enhance}): '{args.query}' -> '{fixed_query}'\n")
-                result = hs.rrf_search(fixed_query, args.k, args.limit)
-                print_rrf_search(result, args.limit)
-            else:
-                result = hs.rrf_search(args.query, args.k, args.limit)
-                print_rrf_search(result, args.limit)
+            fixed_query = fix_query(args.query, args.enhance)
+            limit = get_limit(args.limit, args.rerank_method)
+            print("|||||||||||||||", args.rerank_method, limit) 
+            result = hs.rrf_search(fixed_query, args.k, limit)
+
+            if args.rerank_method == "individual":
+                for [id, s] in result.items():
+                    doc = hs.documents[id]
+                    s["reranked_score"] = HS.llm_rank_query(fixed_query, doc)
+                    time.sleep(1)
+                result = sorted(result.items(), reverse=True, key=lambda e: e[1]["reranked_score"])
+                result = list(result)[:args.limit]
+                result = dict(result)
+
+            print_rrf_search(result, args.limit)
         case _:
             parser.print_help()
 
