@@ -16,3 +16,15 @@ def request(text):
         "response_tokens" : response.usage_metadata.candidates_token_count
     }
     return result
+
+
+def request_with_image(prompt, image, mime, query):    
+    parts = [
+        prompt,
+        genai.types.Part.from_bytes(data=image, mime_type=mime),
+        query
+    ]
+
+    response = client.models.generate_content(model='gemini-2.5-flash', contents=parts)
+    
+    return response
